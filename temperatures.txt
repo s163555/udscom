@@ -1,0 +1,8 @@
+temp1,12001,uint16
+temp2,12002,uint16
+temp3,12003,uint16
+temp4,12004,uint16
+temp5,12005,uint16
+temp6,12006,uint16
+temp7,12007,uint16
+temp8,12008,uint16
