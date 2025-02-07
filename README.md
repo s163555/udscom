@@ -3,17 +3,15 @@
 
 This repository contains a MATLAB application (`isotp_com_gui.m`) that provides a cross-platform ISO-TP communication interface for PC (Windows and Linux). It enables loading data lists, reading diagnostic information over CAN, and displaying results in a polling loop. 
 
+## Preview
+![application gui](preview.png "Application GUI")
+
 ## Contents
 ├── README.md # This file (overview and usage instructions)
-
 ├── isotp_com_gui.m # Main MATLAB GUI script
-
 ├── <windows>/ # Windows-specific scripts or libraries
-
    └── CANInterface_Windows.m # Windows-specific CAN interface logic (PCANBasic, PCAN-ISO-TP)
-
 ├── <linux>/ # Linux-specific scripts or libraries
-
    └── isotp_mex_linux.cpp # Linux ISO-TP MEX interface 
 
 ## Requirements
@@ -28,6 +26,8 @@ This repository contains a MATLAB application (`isotp_com_gui.m`) that provides 
    - For Linux, the application uses SocketCAN (`ip link show canX`). 
 5. **MATLAB Compiler (optional)**  
    - If you plan to distribute as a standalone application.
+6. **PEAK CAN USB interface**
+   - The application uses the PCAN driver libraries.
 
 ## Usage
 
