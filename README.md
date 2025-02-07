@@ -7,12 +7,22 @@ This repository contains a MATLAB application (`isotp_com_gui.m`) that provides 
 ![application gui](preview.png "Application GUI")
 
 ## Contents
+```.
 ├── README.md # This file (overview and usage instructions)
 ├── isotp_com_gui.m # Main MATLAB GUI script
-├── <windows>/ # Windows-specific scripts or libraries
-   └── CANInterface_Windows.m # Windows-specific CAN interface logic (PCANBasic, PCAN-ISO-TP)
-├── <linux>/ # Linux-specific scripts or libraries
-   └── isotp_mex_linux.cpp # Linux ISO-TP MEX interface 
+├── LICENSE.md
+├── linux # Linux-specific scripts or libraries/
+│   ├── isotp_mex_linux.cpp # Linux ISO-TP MEX interface 
+│   └── isotp_mex_linux.mexa64 # Compiled binary (MATLAB R2024b)
+└── windows # Windows-specific scripts or libraries/
+    ├── CANInterface_Windows.m # Windows-specific CAN interface logic (PCANBasic, PCAN-ISO-TP)
+    ├── PCANBasic.dll
+    ├── PCANBasic.h
+    ├── PCAN-ISO-TP_2016.h
+    ├── PCAN-ISO-TP.dll
+    ├── PCAN-UDS_2013.h
+    └── PCAN-UDS.dll
+```
 
 ## Requirements
 
