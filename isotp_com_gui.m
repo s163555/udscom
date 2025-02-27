@@ -23,14 +23,15 @@ function isotp_com_gui()
     if isempty(availableInterfaces)
         availableInterfaces = {'N/A'};
     end
-    mainLayout = uigridlayout(fig, [3, 1]);
-    mainLayout.RowHeight = {'fit', 'fit', '1x'};
+    mainLayout = uigridlayout(fig, [4, 1]);
+    mainLayout.RowHeight = {'fit', 'fit', '1x','0x'};
     mainLayout.Padding = [10 10 10 10];
     mainLayout.RowSpacing = 10;
-    staticLayout = uigridlayout(mainLayout, [1, 5]);
+    fig.UserData.mainLayout = mainLayout;
+    staticLayout = uigridlayout(mainLayout, [1, 6]);
     staticLayout.Layout.Row = 1;
     staticLayout.Layout.Column = 1;
-    staticLayout.ColumnWidth = {'1x', 'fit', '1x', '1x', '1x'};
+    staticLayout.ColumnWidth = {'1x', 'fit', '1x', '1x', '1x', '1x'};
     staticLayout.RowHeight = {'fit'};
     staticLayout.ColumnSpacing = 10;
 
@@ -53,10 +54,13 @@ function isotp_com_gui()
     fig.UserData.isPolling = false;
     fig.UserData.toggleButton = uibutton(staticLayout, 'Text', 'Start', ...
         'ButtonPushedFcn', @(btn,~) togglePolling(platform, fig, btn));
+    plotBtn = uibutton(staticLayout, 'Text', 'Plot Data', ...
+        'ButtonPushedFcn', @(btn,~) togglePlot(fig, btn));
     repDD = uidropdown(staticLayout, ...
-    'Items', {'Decimal', 'Hexadecimal', 'Binary'}, ...
-    'Value', 'Decimal', ...  % Default
-    'ValueChangedFcn', @(src,~) setDisplayMode(fig, src.Value));
+        'Items', {'Decimal', 'Hexadecimal', 'Binary'}, ...
+        'Value', 'Decimal', ...  % Default
+        'ValueChangedFcn', @(src,~) setDisplayMode(fig, src.Value));
+
     % --- Row 2: Message Display --- %
     messageLabel = uilabel(mainLayout, 'Text', 'User Message');
     messageLabel.Layout.Row = 2;
@@ -66,6 +70,17 @@ function isotp_com_gui()
     dynamicPanel = uipanel(mainLayout, 'Title', 'Data IDs');
     dynamicPanel.Layout.Row = 3;
     dynamicPanel.Layout.Column = 1;
+    % --- Row 4: Plot Panel --- %
+    plotPanel = uipanel(mainLayout, 'Title', 'Data Plot', 'Visible','off');
+    plotPanel.Layout.Row = 4;
+    plotPanel.Layout.Column = 1;
+    fig.UserData.plotPanel = plotPanel;
+    fig.UserData.plotAx = uiaxes(plotPanel, 'Visible', 'off');
+    title(fig.UserData.plotAx, 'Data Over Time');
+    xlabel(fig.UserData.plotAx, 'Time (s)');
+    ylabel(fig.UserData.plotAx, 'Value');
+    fig.UserData.isPolling = false;
+    fig.UserData.isPlotting = false;  % track plotting
 
     if strcmp(availableInterfaces,'N/A')
         
@@ -85,6 +100,30 @@ function setInterface(fig, selectedInterface)
     drawnow;
 end
 
+function togglePlot(fig, btn)
+    layout    = fig.UserData.mainLayout;
+    panel     = fig.UserData.plotPanel;
+    ax        = fig.UserData.plotAx;
+
+    fig.UserData.isPlotting = ~fig.UserData.isPlotting;
+
+    if fig.UserData.isPlotting
+        btn.Text = 'Stop Plot';
+        userMessage(fig, 'Data plotting enabled.');
+        panel.Visible = 'on';
+        ax.Visible    = 'on';
+        layout.RowHeight{4} = '1x';
+    else
+        btn.Text = 'Plot Data';
+        userMessage(fig, 'Data plotting disabled.');
+        cla(ax);
+        delete( legend(ax) );
+
+        ax.Visible = 'off';
+        panel.Visible = 'off';
+        layout.RowHeight{4} = '0x';
+    end
+end
 
 function loadDataFile(fig)
     [file, path] = uigetfile('*.txt', 'Select Data ID List File');
@@ -121,6 +160,12 @@ function loadDataFile(fig)
     dataIDBundles = loadDataIDList(dataFile);
     fig.UserData.dataIDBundles = dataIDBundles;
     numIDs = numel(dataIDBundles);
+    fig.UserData.plotData = cell(1, numIDs);
+
+    for k = 1:numIDs
+        fig.UserData.plotData{k}.time   = [];
+        fig.UserData.plotData{k}.values = [];
+    end
 
     dLayout = uigridlayout(fig.UserData.dynamicPanel, [numIDs, 2]);
     dLayout.Padding = [10 10 10 10];
@@ -183,6 +228,7 @@ function pollingLoop(platform, fig)
     % Global timeout settings
     globalTimeout = 5;
     lastResponseTime = tic;
+    fig.UserData.pollStartTic = tic; % start reference time
 
     try
         while fig.UserData.isPolling
@@ -209,13 +255,21 @@ function pollingLoop(platform, fig)
                     else
                         dispMode = 'Decimal'; % default if not set
                     end
-
+                    % Store for plotting if enabled
+                    if fig.UserData.isPlotting
+                        currTime = toc(fig.UserData.pollStartTic);
+                        fig.UserData.plotData{k}.time(end+1) = currTime;
+                        fig.UserData.plotData{k}.values(end+1) = val;
+                    end
                 end
                 % Check if the figure and field are still valid before updating
                 if isvalid(fig) && isgraphics(fig.UserData.dataFields{k})
                     formatted_val = formatValue(val, dispMode);
                     fig.UserData.dataFields{k}.Value = num2str(formatted_val);
                 end
+            end
+            if fig.UserData.isPlotting
+                updatePlot(fig);
             end
             pause(0.1); % Faster polling rate
         end
@@ -228,6 +282,28 @@ function pollingLoop(platform, fig)
         end
     end
 end
+
+function updatePlot(fig)
+    ax = fig.UserData.plotAx;
+    if ~isvalid(ax)
+        return;
+    end
+    cla(ax);
+    hold(ax, 'on');
+
+    for k = 1:numel(fig.UserData.plotData)
+        t = fig.UserData.plotData{k}.time;
+        v = fig.UserData.plotData{k}.values;
+        if ~isempty(t)
+            plot(ax, t, v, 'DisplayName', fig.UserData.dataIDBundles(k).label);
+        end
+    end
+
+    hold(ax, 'off');
+    legend(ax, 'show');
+    drawnow;
+end
+
 
 function stopPolling(fig)
     if isfield(fig.UserData, 'isPolling') && fig.UserData.isPolling
