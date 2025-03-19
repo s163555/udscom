@@ -9,7 +9,7 @@ This repository contains a MATLAB application (`udscom_gui.m`) that provides a c
 ## Contents
 ```.
 ├── README.md # This file (overview and usage instructions)
-├── isotp_com_gui.m # Main MATLAB GUI script
+├── udscom_gui.m # Main MATLAB GUI script
 ├── LICENSE.md
 ├── linux # Linux-specific scripts or libraries/
 │   ├── isotp_mex_linux.cpp # Linux ISO-TP MEX interface 
@@ -43,7 +43,7 @@ This repository contains a MATLAB application (`udscom_gui.m`) that provides a c
 
 1. **Clone or download** this repository.
 2. **Open MATLAB** and navigate to the repository folder.
-3. **Run `isotp_com_gui.m`** 
+3. **Run `udscom_gui.m`** 
 4. **Select the CAN interface** 
    - On Linux, you should see available SocketCAN interfaces (e.g., can0, can1).
    - On Windows, the application uses PCAN. CANInterface_Windows detects interfaces such as PCAN_USBBUS1.
@@ -62,7 +62,7 @@ This repository contains a MATLAB application (`udscom_gui.m`) that provides a c
 
 ## File Descriptions
 
--   **`isotp_com_gui.m`**  
+-   **`udscom_gui.m`**  
     Main script that builds the MATLAB GUI using `uifigure` and `uigridlayout`. Handles user interactions (loading data file, starting/stopping polling, display mode selection).
 -   **`CANInterface_Windows.m`**  
     Contains Windows-specific code to initialize, read, and write CAN frames via PCANBasic or ISO-TP libraries.
