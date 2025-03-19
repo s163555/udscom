@@ -1,7 +1,7 @@
 
-# ISO-TP MATLAB GUI
+# udscom GUI
 
-This repository contains a MATLAB application (`isotp_com_gui.m`) that provides a cross-platform ISO-TP communication interface for PC (Windows and Linux). It enables loading data lists, reading diagnostic information over CAN, and displaying results in a polling loop. 
+This repository contains a MATLAB application (`udscom_gui.m`) that provides a cross-platform ISO-TP communication interface for PC (Windows and Linux). It enables loading data lists, reading diagnostic information over CAN, and displaying results in a polling loop. 
 
 ## Preview
 ![application gui](preview.png "Application GUI")

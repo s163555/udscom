@@ -10,9 +10,3 @@ cell9,11009,uint16
 cell10,11010,uint16
 cell11,11011,uint16
 cell12,11012,uint16
-cell13,11013,uint16
-cell14,11014,uint16
-cell15,11015,uint16
-cell16,11016,uint16
-cell17,11017,uint16
-cell18,11018,uint16

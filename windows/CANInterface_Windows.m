@@ -1,157 +1,201 @@
-function varargout = CANInterface_Windows(func, varargin)
-    % CANInterface_Windows - Consolidated Windows CAN interface functions.
-    % Usage:
-    %   response = CANInterface_Windows('tranceiveCAN', canIf, rxHex, txHex, requestVec);
-    %   isAvailable = CANInterface_Windows('checkCANInterface', canInterface);
-    %   availableInterfaces = CANInterface_Windows('detect');
-    %   CANInterface_Windows('cleanup');
-    
-    switch func
+function [varargout] = CANInterface_Windows(cmd,varargin)% vendorName, deviceOrEmpty, rxIdHex, txIdHex, requestVec)
+% CANINTERFACE_WINDOWS  Single-frame TX, multi-frame RX (naive ISO-TP),
+%                       with MULTIPLE flow-control frames after FirstFrame.
+%
+%  Usage:
+%    resp = CANInterface_Windows('tranceiveCAN', ...
+%       'PEAK-System', [], '18DAF101', '18DA01F1', uint8([0x22, 0xF1, 0x90]));
+%
+%  If 'deviceOrEmpty' is empty, it auto-detects the first PEAK-System device
+%  from canHWInfo() and uses that. This example forcibly sends three (3) flow
+%  control frames to mimic a Linux SocketCAN log where repeated FC frames
+%  were observed.
+
+
+    switch cmd
         case 'tranceiveCAN'
             % Now uses ISO-TP for automatic segmentation and reassembly.
-            varargout{1} = tranceiveCAN_ISOTP_windows(varargin{:});
-        case 'checkCANInterface'
-            varargout{1} = checkCANInterface_windows(varargin{:});
+            varargout{1} = tranceive(varargin{:});
+        case 'setup'
+            varargout{1} = setup(varargin{:});
         case 'cleanup'
-            cleanup_windows();
+            cleanup(varargin{:});
         case 'detect'
-            varargout{1} = detectCANInterface_windows();
+            [varargout{1}, varargout{2}] = detect();
         otherwise
-            error('Unsupported function: %s', func);
+            error('Unsupported function: %s', cmd);
     end
+
+end
+function [ifName,handle] = detect()
+
+ %------------------------------------------------------------
+    % 1) If the device is empty, auto-detect the first PEAK-System entry
+    %------------------------------------------------------------
+    vendorName = 'PEAK-System';
+    
+    hwInfo = canHWInfo();  % older MATLAB returns a struct array or table
+    % The displayed table typically has fields: Vendor, Device, Channel, etc.
+
+    % We need to find rows with Vendor == "PEAK-System".
+    allVendors = {hwInfo(:).VendorInfo.VendorName};  % cell array of vendors
+    peakMask   = strcmp(allVendors, vendorName);
+    peakIdx    = find(peakMask, 1, 'first');  % index of first match
+    if isempty(peakIdx)
+        error('No PEAK-System device found in canHWInfo().');
+    end
+
+    deviceName  = hwInfo.VendorInfo(1,peakIdx).ChannelInfo.Device;  % e.g. 'PCAN_USBBUS1'
+    fprintf('[INFO] Auto-detected PEAK device="%s"', ...
+        deviceName);
+    canCh = canChannel('PEAK-System', deviceName);
+    ifName = deviceName;
+    handle = canCh;
+    
+end
+function canOK = setup(canCh)
+    %------------------------------------------------------------
+    % 2) Create CAN channel
+    %------------------------------------------------------------
+    
+    % If needed, set the bus speed:
+    stop(canCh);
+    configBusSpeed(canCh, 500000);
+
+    %------------------------------------------------------------
+    % 3) Start the channel
+    %------------------------------------------------------------
+    start(canCh);
+    canOK = true;
+end
+    
+function respData = tranceive(canCh,rxIdHex, txIdHex, requestVec)
+    
+
+    %------------------------------------------------------------
+    % 4) Parse the hex IDs
+    %------------------------------------------------------------
+    rxId = hex2dec(rxIdHex);
+    txId = hex2dec(txIdHex);
+    rxIsExtended = (rxId > 2047);
+    txIsExtended = (txId > 2047);
+
+    % Request must be single-frame (<= 8 bytes)
+    if numel(requestVec) > 8
+        error('Request has more than 8 bytes. This code only does single-frame TX.');
+    end
+    %------------------------------------------------------------
+    % 5) Send single-frame request
+    %------------------------------------------------------------
+    msgTx = canMessage(txId, txIsExtended, numel(requestVec));
+    msgTx.Data = requestVec;
+    transmit(canCh, msgTx);
+
+    %------------------------------------------------------------
+    % 6) Multi-frame RX with repeated flow-controls
+    %------------------------------------------------------------
+    respData = isoTpReceive(canCh, rxId,txId, rxIsExtended,txIsExtended);
 end
 
-%% === ISO-TP based send and receive function === %
-function response = tranceiveCAN_ISOTP_windows(canIf, rxHex, txHex, requestVec)   
-    persistent isISOTPInitialized;
-    if isempty(isISOTPInitialized)
-        isISOTPInitialized = false;
-    end
 
-    if ~libisloaded('PCAN_ISOTP')
-        %loadlibrary('PCAN-ISO-TP.dll', 'PCAN_ISOTP.h');
-        loadlibrary('PCAN-ISO-TP.dll');
-    end
+%====================================================================
+% Subfunction: isoTpReceive
+%====================================================================
+function respData = isoTpReceive(canCh, rxId,txId, rxIsExtended,txIsExtended)
+    respData = uint8([]);
+    tStart = tic;
+    timeoutSec = 0.5;
 
-    % Get the channel number from the user-selected interface.
-    channel = getPCANChannelFromInterface(canIf);
-    PCAN_BAUD_500K = uint16(6);
-    
-    % If the ISO-TP layer has not been initialized, initialize it.
-    if ~isISOTPInitialized
-        statusCAN = calllib('PCANBasic', 'CAN_Uninitialize', chanInfo.channel);
-        statusISOTP = calllib('PCAN_ISOTP', 'TP_Initialize', channel, PCAN_BAUD_500K, 0, 0, 0);
-        if statusCAN && statusISOTP ~= 0
-            error('Failed to initialize PCAN ISO-TP interface %s', canIf);
+    gotFirstFrame = false;
+    totalLen = 0;
+
+    while toc(tStart) < timeoutSec
+        msgs = receive(canCh, Inf);  % get all queued frames
+        if isempty(msgs)
+            pause(0.01);
+            continue;
         end
-        isISOTPInitialized = true;
-    end
 
-    % Convert the transmit and receive hex IDs to numeric values.
-    msgID_tx = parseHexID(txHex);
-    msgID_rx = parseHexID(rxHex);
-    
-    % Send the request using the ISO-TP DLL.
-    status = calllib('PCAN_ISOTP', 'TP_Send', channel, msgID_tx, requestVec, uint8(length(requestVec)));
-    if status ~= 0
-        error('Failed to send ISO-TP message on %s', canIf);
-    end
+        for m = 1:numel(msgs)
+            msg = msgs(m);
+            % Must match our response ID (rxId, with correct Extended bit)
+            if msg.ID ~= rxId || msg.Extended ~= rxIsExtended
+                continue;
+            end
+            raw = msg.Data;
+            if isempty(raw), continue; end
+            pci = raw(1);
+            frameType = bitshift(pci, -4);  % top nibble
+            if frameType == 0
+                lengthNib =bitand(pci, 15);
+            else
+                lengthNib = raw(2);%
+            end
+            switch frameType
+                case 0 % SINGLE FRAME
+                    sfLen = lengthNib;
+                    if sfLen <= (numel(raw) - 2)
+                        respData = raw(2 : 1 + sfLen);
+                    end
+                    return;
 
-    % Prepare a buffer to receive the complete response.
-    maxBufferSize = 64;  % Adjust as needed.
-    responseBuffer = zeros(1, maxBufferSize, 'uint8');
-    lenPtr = libpointer('uint8Ptr', uint8(0));
-    
-    % Read the reassembled response using the expected receive ID.
-    status = calllib('PCAN_ISOTP', 'TP_Read', channel, msgID_rx, responseBuffer, uint32(maxBufferSize), lenPtr);
-    if status ~= 0
-        error('Failed to read ISO-TP message on %s', canIf);
-    end
+                case 1 % FIRST FRAME
+                    if numel(raw) < 3
+                        continue; % malformed
+                    end
+                    %ffLen = lengthNib * 256 + raw(2);
+                    totalLen = lengthNib;
+                    ffPayload = raw(3:end);
+                    respData = ffPayload(:).';
+                    gotFirstFrame = true;
 
-    responseLength = double(lenPtr.Value);
-    response = responseBuffer(1:responseLength);
-end
+                    % === REPLICATE LINUX: SEND MULTIPLE FLOW CONTROLS ===
+                    % In your log, we see three "30 00 00" frames repeated
+                    for i = 1:3
+                        sendFlowControl(canCh, txId, txIsExtended);
+                    end
 
-%% Function to detect CAN interfaces
-function availableInterfaces = detectCANInterface_windows()
-    % Ensure the PCANBasic DLL is loaded.
-    if ~libisloaded('PCANBasic')
-        %loadlibrary('PCANBasic.dll', 'PCANBasic.h');
-        loadlibrary('PCANBasic.dll');
-    end
+                    % If the first frame has all data (rare)
+                    if numel(respData) >= totalLen
+                        respData = respData(1:totalLen);
+                        return;
+                    end
 
-    possibleChannels = {...
-        struct('name', 'can0', 'channel', uint16(0x51)), ...
-        struct('name', 'can1', 'channel', uint16(0x52)) ...
-    };
+                case 2 % CONSECUTIVE FRAME
+                    if ~gotFirstFrame, continue; end
+                    cfPayload = raw(2:end);
+                    respData = [respData, cfPayload(:).'];
 
-    availableInterfaces = {};
-    PCAN_BAUD_500K = uint16(6);
+                    if numel(respData) >= totalLen
+                        respData = respData(1:totalLen);
+                        return;
+                    end
 
-    for k = 1:length(possibleChannels)
-        chanInfo = possibleChannels{k};
-        status = calllib('PCANBasic', 'CAN_Initialize', chanInfo.channel, PCAN_BAUD_500K, 0, 0, 0);
-        if status == 0
-            availableInterfaces{end+1} = chanInfo.name; %#ok<AGROW>
+                case 3 % FLOW CONTROL (not expected from ECU->us)
+                    continue;
+            end
         end
+        pause(0.01);
     end
 end
 
 
-%% Function to check CAN interface availability
-function isAvailable = checkCANInterface_windows(canInterface)
-    % Load the PCANBasic DLL if not already loaded.
-    if ~libisloaded('PCANBasic')
-        %loadlibrary('PCANBasic.dll', 'PCANBasic.h');
-        loadlibrary('PCANBasic.dll');
-    end
-
-    % Define constants from the PCAN API.
-    PUDS_PARAMETER_CHANNEL_CONDITION = uint32(42); % Replace with the actual constant value.
-    PUDS_CHANNEL_UNAVAILABLE = uint8(0);
-    PUDS_CHANNEL_AVAILABLE = uint8(1);
-    PUDS_CHANNEL_OCCUPIED = uint8(2);
-
-    % Convert the CAN interface name to a channel handle.
-    channel = getPCANChannelFromInterface(canInterface);
-
-    % Check the channel condition.
-    channelCondition = uint8(0); % Initialize.
-    status = calllib('PCANBasic', 'UDS_GetParameter', channel, PUDS_PARAMETER_CHANNEL_CONDITION, channelCondition);
-
-    if status ~= 0
-        error('Failed to check CAN interface condition');
-    end
-
-    % Determine availability.
-    isAvailable = (channelCondition == PUDS_CHANNEL_AVAILABLE);
-end
-
-%% Helper function to map CAN interface to PCAN channel
-function channel = getPCANChannelFromInterface(canInterface)
-    switch canInterface
-        case 'can0'
-            channel = uint16(0x51); % PCAN_USBBUS1
-        case 'can1'
-            channel = uint16(0x52); % PCAN_USBBUS2
-        otherwise
-            error('Unsupported CAN interface: %s', canInterface);
-    end
-end
-
-%% Helper function to parse hex ID
-function val = parseHexID(hexStr)
-    val = hex2dec(hexStr);
+%====================================================================
+% Subfunction: sendFlowControl
+%====================================================================
+function sendFlowControl(canCh, txId, txIsExtended)
+    % "30 00 00" => FlowControl(ClearToSend), BlockSize=0, STmin=0
+    fc = canMessage(txId, txIsExtended, 3);
+    fc.Data = uint8([0x30, 0x00, 0x00]);
+    transmit(canCh, fc);
 end
 
 %% Windows-specific cleanup function
-function cleanup_windows()
-    if libisloaded('PCANBasic')
-        calllib('PCANBasic', 'CAN_Uninitialize', chanInfo.channel);
-        unloadlibrary('PCANBasic');
-    end
-    if libisloaded('PCAN_ISOTP')
-        calllib('PCAN_ISOTP', 'TP_Uninitialize', channel);
-        unloadlibrary('PCAN_ISOTP');
-    end
+function cleanup(canCh)
+
+    %------------------------------------------------------------
+    % 7) Stop & return
+    %------------------------------------------------------------
+    stop(canCh);
+    delete(canCh);
 end
