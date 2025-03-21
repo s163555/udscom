@@ -46,7 +46,7 @@ function udscom_gui()
         'Value', availableInterfaces{1}, ...
         'ValueChangedFcn', @(src,event) setInterface(fig, src.Value));
     fig.UserData.canInterface = dd.Value;
-    refreshBtn = uibutton(staticLayout, 'Text', '🔄', ...
+    fig.UserData.refreshButton = uibutton(staticLayout, 'Text', '🔄', ...
         'ButtonPushedFcn', @(btn,~) refreshCANInterfaces(fig, dd, platform));
     fig.UserData.canInterface = dd.Value;
     uibutton(staticLayout, 'Text', 'Load Data File', ...
@@ -54,9 +54,11 @@ function udscom_gui()
     fig.UserData.isPolling = false;
     fig.UserData.toggleButton = uibutton(staticLayout, 'Text', 'Start', ...
         'ButtonPushedFcn', @(btn,~) togglePolling(platform, fig, btn));
-    plotBtn = uibutton(staticLayout, 'Text', 'Plot Data', ...
+    fig.UserData.plotButton = uibutton(staticLayout, 'Text', 'Plot Data', ...
         'ButtonPushedFcn', @(btn,~) togglePlot(fig, btn));
-    repDD = uidropdown(staticLayout, ...
+    fig.UserData.loggingButton = uibutton(staticLayout, 'Text', 'Start Logging', ...
+        'ButtonPushedFcn', @(btn,~) toggleLogging(fig, btn));
+    fig.UserData.numericDisplay = uidropdown(staticLayout, ...
         'Items', {'Decimal', 'Hexadecimal', 'Binary'}, ...
         'Value', 'Decimal', ...  % Default
         'ValueChangedFcn', @(src,~) setDisplayMode(fig, src.Value));
@@ -80,7 +82,9 @@ function udscom_gui()
     xlabel(fig.UserData.plotAx, 'Time (s)');
     ylabel(fig.UserData.plotAx, 'Value');
     fig.UserData.isPolling = false;
-    fig.UserData.isPlotting = false;  % track plotting
+    fig.UserData.isPlotting = false;
+    fig.UserData.isLogging = false;
+    fig.UserData.logFileID = -1;
 
     if strcmp(availableInterfaces,'N/A')
         
@@ -188,6 +192,39 @@ function loadDataFile(fig)
     end
 end
 
+function toggleLogging(fig, btn)
+    if fig.UserData.isLogging
+        % Stop logging
+        fig.UserData.isLogging = false;
+        btn.Text = 'Start Logging';
+        if fig.UserData.logFileID > 0
+            fclose(fig.UserData.logFileID);
+            fig.UserData.logFileID = -1;
+            userMessage(fig, 'Logging stopped.');
+            disp('Logging stopped.');
+        end
+    else
+        % Start logging
+        [file, path] = uiputfile('logfile.txt', 'Save Log File As');
+        if isequal(file,0)
+            return; % User canceled
+        end
+        fullPath = fullfile(path, file);
+        fid = fopen(fullPath, 'w');
+        if fid < 0
+            userMessage(fig, 'Could not open log file for writing.');
+            return;
+        end
+        fig.UserData.logFileID = fid;
+        fig.UserData.isLogging = true;
+        btn.Text = 'Stop Logging';
+        userMessage(fig, ['Logging to ', file]);
+        fprintf(fid, 'Timestamp\tLabel\tValue\n'); % header
+        disp(['Logging to: ', fullPath]);
+    end
+end
+
+
 function togglePolling(platform, fig, btn)
     if fig.UserData.isPolling
         stopPolling(fig);
@@ -260,6 +297,11 @@ function pollingLoop(platform, fig)
                         currTime = toc(fig.UserData.pollStartTic);
                         fig.UserData.plotData{k}.time(end+1) = currTime;
                         fig.UserData.plotData{k}.values(end+1) = val;
+                    end
+                    if fig.UserData.isLogging && fig.UserData.logFileID > 0
+                        timestamp = toc(fig.UserData.pollStartTic);
+                        label = fig.UserData.dataIDBundles(k).label;
+                        fprintf(fig.UserData.logFileID, '%.3f\t%s\t%g\n', timestamp, label, val);
                     end
                 end
                 % Check if the figure and field are still valid before updating
@@ -445,7 +487,11 @@ function cleanupOnExit(platform, fig)
         case 'windows'
             CANInterface_Windows('cleanup');
     end
-
+    if isfield(fig.UserData, 'isLogging') && fig.UserData.isLogging
+        if fig.UserData.logFileID > 0
+            fclose(fig.UserData.logFileID);
+        end
+    end
     delete(fig);
 end
 
