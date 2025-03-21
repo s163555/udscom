@@ -431,11 +431,19 @@ function val = requestCANData(platform, fig, dataID, typeStr)
     end
     hiDID = bitshift(dataID, -8);
     loDID = bitand(dataID, 255);
-    requestVec = uint8([0x03, 0x22, hiDID, loDID]);
+    
 
     try
-        resp = sendReceiveCAN(platform, fig.UserData.canInterface, fig.UserData.canHandle, ...
+        switch platform
+            case 'windows'
+                requestVec = uint8([0x03, 0x22, hiDID, loDID]);
+                resp = sendReceiveCAN(platform, fig.UserData.canInterface, fig.UserData.canHandle, ...
                               fig.UserData.rxIdHex, fig.UserData.txIdHex, requestVec);
+            case 'linux'
+                requestVec = uint8([0x22, hiDID, loDID]);
+                resp = sendReceiveCAN(platform, fig.UserData.canInterface, [], ...
+                          fig.UserData.rxIdHex, fig.UserData.txIdHex, requestVec);
+        end
         if isempty(resp)
             fprintf('  -> Timeout for ID %d\n', dataID);
             val = NaN;
@@ -487,11 +495,20 @@ end
 
 function isAvailable = checkCANInterface(platform, fig)
     canInterface = fig.UserData.canInterface;
-    canHandle    = fig.UserData.canHandle;
+    if iscell(canInterface)
+        canInterface = canInterface{1}; % Extract first interface if it's a cell array
+    end
+    if isempty(canInterface) || strcmp(canInterface, 'N/A')
+            disp('No valid CAN interface selected.');
+            isAvailable = false;
+            return;
+    end
     switch platform
         case 'windows'
+            canHandle    = fig.UserData.canHandle;
             isAvailable =CANInterface_Windows('setup', canHandle);
         case 'linux'
+        
             [status, result] = system(['ip link show ', canInterface]);
             isAvailable = (status == 0 && contains(result, 'state UP'));
         otherwise
@@ -507,9 +524,19 @@ end
 function response = sendReceiveCAN(platform, canIf, canHandle, rxHex, txHex, requestVec)
     switch platform
         case 'windows'
+            if isempty(canHandle)
+                disp('Error: CAN handle is missing for Windows.');
+                response = [];
+                return;
+            end
             response = CANInterface_Windows('tranceiveCAN', canHandle, rxHex, txHex, requestVec);
+
         case 'linux'
+            if iscell(canIf)
+                canIf = canIf{1}; % Extract actual string from the cell
+            end
             response = isotp_mex_linux(canIf, rxHex, txHex, requestVec);
+            
         otherwise
             response = [];
     end
