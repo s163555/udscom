@@ -9,6 +9,7 @@ function udscom_legacy()
                  'Position', [100, 100, 600, 500], ...
                  'MenuBar', 'none', ...
                  'ToolBar', 'none', ...
+                 'ResizeFcn', @(src, evt)resizeLayout(src), ...
                  'CloseRequestFcn', @(src,evt)cleanupOnExit(src));
     
     % Determine OS platform, load libraries
@@ -58,7 +59,7 @@ function udscom_legacy()
     xPos = 10;  % Start at 10 px from left edge
 
     % 1) Label "CAN IF:"
-    uicontrol('Parent', fig, ...
+    fig.UserData.ifLabel = uicontrol('Parent', fig, ...
         'Style', 'text', ...
         'String', 'CAN IF:', ...
         'Position', [xPos, topRowY, labelWidth, rowHeight], ...
@@ -66,7 +67,7 @@ function udscom_legacy()
     xPos = xPos + labelWidth + spacing;
 
     % 2) CAN Interface pop-up
-    fig.UserData.dd = uicontrol('Parent', fig, ...
+    fig.UserData.ifPopup = uicontrol('Parent', fig, ...
         'Style', 'popupmenu', ...
         'String', availableInterfaces, ...
         'Value', 1, ... % default to first
@@ -76,7 +77,7 @@ function udscom_legacy()
 
     % 3) Refresh button
     refreshButtonWidth = 40;
-    uicontrol('Parent', fig, ...
+    fig.UserData.refreshButton = uicontrol('Parent', fig, ...
         'Style', 'pushbutton', ...
         'String', '🔄', ...
         'Position', [xPos, topRowY, refreshButtonWidth, rowHeight], ...
@@ -85,7 +86,7 @@ function udscom_legacy()
 
     % 4) Load Data button
     loadBtnWidth = 80;
-    uicontrol('Parent', fig, ...
+    fig.UserData.loadButton = uicontrol('Parent', fig, ...
         'Style', 'pushbutton', ...
         'String', 'Load Data', ...
         'Position', [xPos, topRowY, loadBtnWidth, rowHeight], ...
@@ -103,7 +104,7 @@ function udscom_legacy()
 
     % 6) Display Mode (Decimal/Hex/Bin)
     modeWidth = 100;
-    fig.UserData.repDD = uicontrol('Parent', fig, ...
+    fig.UserData.displayModePopup = uicontrol('Parent', fig, ...
         'Style', 'popupmenu', ...
         'String', {'Decimal','Hexadecimal','Binary'}, ...
         'Value', 1, ...
@@ -136,6 +137,113 @@ end
 %========================================================
 %    CALLBACKS AND FUNCTIONS
 %========================================================
+
+function resizeLayout(fig)
+    figPos = get(fig, 'Position');
+    rowHeight            = 25;
+    labelWidth           = 50;
+    controlWidth         = 120;
+    spacing              = 10;
+    refreshButtonWidth   = 40;
+    loadBtnWidth         = 80;
+    toggleWidth          = 60;
+    modeWidth            = 100;
+
+    topRowY = figPos(4) - rowHeight - 10;
+    xPos = 10;
+
+    if isfield(fig.UserData, 'ifLabel') && isgraphics(fig.UserData.ifLabel)
+        set(fig.UserData.ifLabel, ...
+            'Position', [xPos, topRowY, labelWidth, rowHeight]);
+        xPos = xPos + labelWidth + spacing;
+    end
+
+    if isfield(fig.UserData, 'ifPopup') && isgraphics(fig.UserData.ifPopup)
+        set(fig.UserData.ifPopup, ...
+            'Position', [xPos, topRowY, controlWidth, rowHeight]);
+        xPos = xPos + controlWidth + spacing;
+    end
+
+    if isfield(fig.UserData, 'refreshButton') && isgraphics(fig.UserData.refreshButton)
+        set(fig.UserData.refreshButton, ...
+            'Position', [xPos, topRowY, refreshButtonWidth, rowHeight]);
+        xPos = xPos + refreshButtonWidth + spacing;
+    end
+
+    if isfield(fig.UserData, 'loadButton') && isgraphics(fig.UserData.loadButton)
+        set(fig.UserData.loadButton, ...
+            'Position', [xPos, topRowY, loadBtnWidth, rowHeight]);
+        xPos = xPos + loadBtnWidth + spacing;
+    end
+
+    if isfield(fig.UserData, 'toggleButton') && isgraphics(fig.UserData.toggleButton)
+        set(fig.UserData.toggleButton, ...
+            'Position', [xPos, topRowY, toggleWidth, rowHeight]);
+        xPos = xPos + toggleWidth + spacing;
+    end
+
+    if isfield(fig.UserData, 'displayModePopup') && isgraphics(fig.UserData.displayModePopup)
+        set(fig.UserData.displayModePopup, ...
+            'Position', [xPos, topRowY, modeWidth, rowHeight]);
+        xPos = xPos + modeWidth + spacing;
+    end
+
+    messageHeight = 30; 
+    messageY = topRowY - (rowHeight + 10);  % 10 px gap below top row
+    if isfield(fig.UserData, 'messageText') && isgraphics(fig.UserData.messageText)
+        set(fig.UserData.messageText, ...
+            'Position', [10, messageY, figPos(3)-20, messageHeight]);
+    end
+
+    panelY = 10; % bottom gap
+    panelHeight = messageY - panelY - 10; % space between bottom and message text
+    if panelHeight < 50
+        panelHeight = 50; % prevent negative or too-small panel
+    end
+    panelWidth = figPos(3) - 20; % left/right margins
+    if isfield(fig.UserData, 'dynamicPanel') && isgraphics(fig.UserData.dynamicPanel)
+        set(fig.UserData.dynamicPanel, ...
+            'Position', [10, panelY, panelWidth, panelHeight]);
+    end
+
+    if isfield(fig.UserData, 'dataIDBundles') && ...
+       isfield(fig.UserData, 'dataFields')   && ...
+       ~isempty(fig.UserData.dataFields)
+
+        % Query the panel's current size
+        panelPos = get(fig.UserData.dynamicPanel, 'Position');
+        rowHeight     = 25;
+        spacing       = 5;
+        labelWidth    = 150;
+        fieldWidth    = 120;
+        titleBarH     = 20;
+
+        numIDs = numel(fig.UserData.dataFields);
+        startY = panelPos(4) - rowHeight - spacing - titleBarH;
+
+        for k = 1:numIDs
+            yPos = startY - (k-1)*(rowHeight + spacing);
+
+            if yPos < 0
+                continue;
+            end
+
+            if isfield(fig.UserData, 'dataLabels') && ...
+               k <= numel(fig.UserData.dataLabels) && ...
+               isgraphics(fig.UserData.dataLabels{k})
+                set(fig.UserData.dataLabels{k}, ...
+                    'Position', [10, yPos, labelWidth, rowHeight]);
+            end
+
+            if k <= numel(fig.UserData.dataFields) && ...
+               isgraphics(fig.UserData.dataFields{k})
+                set(fig.UserData.dataFields{k}, ...
+                    'Position', [10+labelWidth+10, yPos, fieldWidth, rowHeight]);
+            end
+        end
+    end
+end
+
 
 function setInterface(fig, src)
     list = get(src, 'String');
@@ -173,7 +281,7 @@ function refreshCANInterfaces(fig, platform)
         availableInterfaces = {'No CAN device detected.'};
     end
 
-    set(fig.UserData.dd, 'String', availableInterfaces, 'Value', 1);
+    set(fig.UserData.ifPopup, 'String', availableInterfaces, 'Value', 1);
     selectedIF = availableInterfaces{1};
     fig.UserData.canInterface = selectedIF;
     
@@ -468,7 +576,7 @@ function parsedVal = parsePayload(payload, typeStr)
     if numel(payload) >= 8 && contains(typeStr, 'float64')
         doubleBytes = flip(payload(1:8));  
         parsedVal = typecast(uint8(doubleBytes), 'double');
-    elseif numel(payload) >= 4 && contains(typeStr, 'single')
+    elseif numel(payload) >= 4 && contains(typeStr, 'float32')
         singleBytes = flip(payload(1:4));
         parsedVal = typecast(uint8(singleBytes), 'single');
     elseif numel(payload) >= 4 && contains(typeStr, 'uint32')

@@ -424,7 +424,7 @@ function parsedVal = parsePayload(payload, typeStr)
         doubleBytes = flip(payload(1:8));  
         parsedVal = typecast(uint8(doubleBytes), 'double');
 
-    elseif numel(payload) >= 4 && contains(typeStr, 'single')
+    elseif numel(payload) >= 4 && contains(typeStr, 'float32')
         singleBytes = flip(payload(1:4));
         parsedVal = typecast(uint8(singleBytes), 'single');
 
