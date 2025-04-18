@@ -12,9 +12,13 @@
 #include <chrono>
 #include <iostream>
 #include <filesystem>
+#include <atomic>
+#include <stop_token>
 
 using namespace std::chrono_literals;
 using namespace ftxui;
+
+std::atomic<bool> running = true;      // global flag (or capture in lambda)
 
 int main(int argc, char** argv) {
     cxxopts::Options opts("udscom_tui");
@@ -53,13 +57,14 @@ int main(int argc, char** argv) {
     // ---------------------------------------------------------------- back‑end
     auto can = make_backend();
     try {
-        can->open(iface, rx, tx);          // <‑‑ MUST succeed first
+        can->open(iface, rx, tx);
     }
     catch (const std::exception& e) {
         std::cerr << "CAN open failed: " << e.what() << '\n';
         return 1;
     }
     // ----------------------------------------------------------------  UI
+    auto scr = ScreenInteractive::Fullscreen();
     bool polling = false;
     std::string mode = "dec";               // dec/hex/bin
 
@@ -73,18 +78,25 @@ int main(int argc, char** argv) {
         }
         return vbox(es) | border;
     });
+    
 
     auto root = CatchEvent(table_renderer, [&](Event e){
+        if (e == Event::Character('q') || e == Event::Escape)
+        {
+            running = false;
+            scr.Exit();
+            return true;
+        }
         if (e == Event::Character(' '))  polling = !polling;
         if (e == Event::Character('h'))  mode = (mode=="hex")? "dec":"hex";
         if (e == Event::Character('b'))  mode = (mode=="bin")? "dec":"bin";
         return false;
     });
 
-    auto scr = ScreenInteractive::TerminalOutput();
 
-    std::jthread poll_thread([&]{
-        while (true) {
+
+    std::jthread poll([&](std::stop_token st){
+        while (running && !st.stop_requested()) {
             if (polling) {
                 for (auto& r : rows) {
                     auto resp = can->request(uds::build_rdbi(r.id), 100ms);
@@ -104,4 +116,5 @@ int main(int argc, char** argv) {
     });
 
     scr.Loop(root);
+    poll.request_stop();
 }
