@@ -1,3 +1,0 @@
-balance-temp1,13001,uint16
-balance-temp2,13002,uint16
-

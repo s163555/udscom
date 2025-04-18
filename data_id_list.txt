@@ -1,3 +1,0 @@
-uC idle average,500,float64
-uC idle min,501,float64
-uC idle max,502,float64
