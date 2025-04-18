@@ -6,6 +6,8 @@
 #include "udscom/parser.hpp"
 #include "udscom/csv.hpp"
 
+#include <cxxopts.hpp>
+
 #include <thread>
 #include <chrono>
 #include <iostream>
@@ -25,7 +27,15 @@ int main(int argc, char** argv) {
 
     // ---------------------------------------------------------------- back‑end
     auto can = make_backend();
-    can->open("can0", 0x18DAF101, 0x18DA01F1);
+    cxxopts::Options opts("udscom_tui");
+    opts.add_options()
+    ("i,iface", "CAN interface", cxxopts::value<std::string>()->default_value("can0"))
+    ("r,rx",    "RX ID (hex)",   cxxopts::value<std::string>()->default_value("18DAF101"))
+    ("t,tx",    "TX ID (hex)",   cxxopts::value<std::string>()->default_value("18DA01F1"));
+    auto cli = opts.parse(argc, argv);
+    auto rx = std::stoul(cli["rx"].as<std::string>(), nullptr, 16);
+    auto tx = std::stoul(cli["tx"].as<std::string>(), nullptr, 16);
+    can->open(cli["iface"].as<std::string>(), rx, tx);
 
     // ----------------------------------------------------------------  UI
     bool polling = false;

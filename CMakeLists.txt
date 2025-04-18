@@ -4,6 +4,7 @@ project(udscom LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 
 add_subdirectory(third_party/FTXUI EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/cxxopts EXCLUDE_FROM_ALL)
 
 add_library(udscom STATIC
   src/parser.cpp
@@ -19,4 +20,5 @@ target_link_libraries(udscom PUBLIC ftxui::screen ftxui::dom ftxui::component
 
 # ---------- final executable ----------------------------------------
 add_executable(udscom_tui src/main.cpp)
+target_link_libraries(udscom_tui PRIVATE cxxopts::cxxopts)
 target_link_libraries(udscom_tui PRIVATE udscom)
