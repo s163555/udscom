@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <limits>
 
 #include "udscom/parser.hpp"
 
@@ -11,7 +12,7 @@ struct DataRow {
     std::string    label;
     std::uint16_t  id;
     ScalarType     type;
-    ScalarValue    value{};          // filled during polling
+    ScalarValue value = std::numeric_limits<double>::quiet_NaN();  
 };
 
 std::vector<DataRow> load_list(const std::filesystem::path& file);

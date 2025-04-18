@@ -64,6 +64,12 @@
         "variant": "cpp",
         "semaphore": "cpp",
         "format": "cpp",
-        "cstring": "cpp"
+        "cstring": "cpp",
+        "bitset": "cpp",
+        "codecvt": "cpp",
+        "unordered_set": "cpp",
+        "regex": "cpp",
+        "fstream": "cpp",
+        "filesystem": "cpp"
     }
 }
