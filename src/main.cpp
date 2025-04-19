@@ -141,8 +141,6 @@ int main(int argc, char** argv) {
         return false;
     });
 
-
-
     std::jthread poll([&](std::stop_token st){
         while (running && !st.stop_requested()) {
             if (polling) {

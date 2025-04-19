@@ -1,22 +1,29 @@
-# udscom/tests/CMakeLists.txt
-cmake_minimum_required(VERSION 3.20)
+# tests/CMakeLists.txt
 
-# 1. Pull in Catch2 (local sub‑directory)
-add_subdirectory(Catch2)   # <= must point to an EXISTING directory
+# 1) Pull in the Catch2 submodule (out‑of‑tree build)
+#    SOURCE_DIR: point at the submodule in your repo
+#    BINARY_DIR: somewhere under build/, e.g. build/third_party/Catch2
+add_subdirectory(
+  ${CMAKE_SOURCE_DIR}/third_party/Catch2
+  ${CMAKE_BINARY_DIR}/third_party/Catch2-build
+  EXCLUDE_FROM_ALL
+)
 
-# 2. Test executable(s)
-add_executable(udscom_tests
+# 2) Declare your test executable
+file(GLOB TEST_SOURCES
   parser_tests.cpp
   csv_tests.cpp
- # history_tests.cpp
+  #history_tests.cpp
 )
+add_executable(udscom_tests ${TEST_SOURCES})
+
+# 3) Link against your library and Catch2’s CMake targets
 target_link_libraries(udscom_tests
-  PRIVATE
-    udscom                 # library under test
-    Catch2::Catch2WithMain # exported by Catch2's CMakeLists.txt
+  PRIVATE udscom
+  PRIVATE Catch2::Catch2WithMain
 )
 
-# 3. Register with CTest
+# 4) Register with CTest
 include(Catch)             # comes from Catch2
 catch_discover_tests(udscom_tests)
 

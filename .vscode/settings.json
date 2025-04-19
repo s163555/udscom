@@ -73,10 +73,12 @@
         "filesystem": "cpp"
     },
     "cmake.configureArgs": [
-        "-DUDSCOM_ENABLE_COVERAGE=ON"
+        "-DUDSCOM_ENABLE_COVERAGE=ON",
+        "-DCMAKE_C_COMPILER=/usr/bin/gcc-13",
+        "-DCMAKE_CXX_COMPILER=/usr/bin/g++-13"
       ],
-      "cmake.coverageCommand": "gcovr -r ${workspaceFolder} ${buildDir} --html --html-details -o ${buildDir}/coverage.html",
-      "cmake.coverageOutputFiles": [
-        "${buildDir}/coverage.html"
-      ]
+      "cmake.postRunCoverageTarget": "coverage",
+      "cmake.coverageInfoFiles": [
+        "${buildDir}/coverage.info"
+      ],
 }

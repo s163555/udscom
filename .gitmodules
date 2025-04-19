@@ -4,6 +4,6 @@
 [submodule "third_party/cxxopts"]
 	path = third_party/cxxopts
 	url = https://github.com/jarro2783/cxxopts
-[submodule "tests/Catch2"]
-	path = tests/Catch2
+[submodule "third_party/Catch2"]
+	path = third_party/Catch2
 	url = https://github.com/catchorg/Catch2

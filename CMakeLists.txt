@@ -39,3 +39,39 @@ target_link_libraries(udscom_tui PRIVATE udscom)
 # ---------- tests ---------------------------------------------------
 enable_testing()
 add_subdirectory(tests)
+
+if(UDSCOM_ENABLE_COVERAGE)
+  find_program(LCOV_EXECUTABLE lcov REQUIRED)
+  find_program(GENHTML_EXECUTABLE genhtml REQUIRED)
+
+  set(LCOV_RAW      "${CMAKE_BINARY_DIR}/coverage.info")
+  set(LCOV_FILTERED "${CMAKE_BINARY_DIR}/coverage.filtered.info")
+  set(HTML_DIR      "${CMAKE_BINARY_DIR}/coverage_html")
+
+  add_custom_target(coverage
+    # 1) capture only your udscom library’s .gcda
+    COMMAND ${LCOV_EXECUTABLE}
+            --capture
+            --directory "${CMAKE_BINARY_DIR}/CMakeFiles/udscom.dir"
+            --output-file "${LCOV_RAW}"
+
+    # 2) strip out /usr, tests/, third_party/
+    COMMAND ${LCOV_EXECUTABLE}
+            --remove "${LCOV_RAW}"
+                     #"*/tests/*"
+                     #"*/third_party/*"
+            --output-file "${LCOV_FILTERED}"
+
+    # 3) generate HTML into coverage_html/
+    COMMAND ${GENHTML_EXECUTABLE}
+            --output-directory "${HTML_DIR}"
+            "${LCOV_FILTERED}"
+
+    BYPRODUCTS
+      "${LCOV_RAW}"
+      "${LCOV_FILTERED}"
+      "${HTML_DIR}"
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+    COMMENT "Capturing & filtering coverage"
+  )
+endif()
