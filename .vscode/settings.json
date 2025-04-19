@@ -71,5 +71,12 @@
         "regex": "cpp",
         "fstream": "cpp",
         "filesystem": "cpp"
-    }
+    },
+    "cmake.configureArgs": [
+        "-DUDSCOM_ENABLE_COVERAGE=ON"
+      ],
+      "cmake.coverageCommand": "gcovr -r ${workspaceFolder} ${buildDir} --html --html-details -o ${buildDir}/coverage.html",
+      "cmake.coverageOutputFiles": [
+        "${buildDir}/coverage.html"
+      ]
 }

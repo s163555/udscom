@@ -8,7 +8,6 @@
 #include "udscom/parser.hpp"
 #include "udscom/csv.hpp"
 
-
 #include <thread>
 #include <chrono>
 #include <iostream>
@@ -27,7 +26,7 @@ std::atomic<bool> running = true;      // global flag (or capture in lambda)
 
 constexpr size_t HISTORY_MAX = 200;      // width of a wide terminal
 std::vector<double> history;             // data to plot
-bool show_plot = false;                  // toggle with 'p'
+bool show_plot = false;
 const size_t PLOT_INDEX = 0;             // which row to graph
 
 int main(int argc, char** argv) {

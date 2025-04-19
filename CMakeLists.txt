@@ -1,6 +1,19 @@
 cmake_minimum_required(VERSION 3.20)
 project(udscom LANGUAGES CXX)
 
+# ── Optional flag: -DUDSCOM_ENABLE_COVERAGE=ON ────────────────────────
+option(UDSCOM_ENABLE_COVERAGE "Build with coverage instrumentation" OFF)
+
+if(UDSCOM_ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  message(STATUS "⚑  Building with GCC coverage flags")
+  add_compile_options(--coverage -O0)
+  add_link_options(--coverage)
+elseif(UDSCOM_ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  message(STATUS "⚑  Building with Clang coverage flags")
+  add_compile_options(-fprofile-instr-generate -fcoverage-mapping -O0)
+  add_link_options(-fprofile-instr-generate)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 
 add_subdirectory(third_party/FTXUI EXCLUDE_FROM_ALL)
@@ -22,3 +35,7 @@ target_link_libraries(udscom PUBLIC ftxui::screen ftxui::dom ftxui::component
 add_executable(udscom_tui src/main.cpp)
 target_link_libraries(udscom_tui PRIVATE cxxopts::cxxopts)
 target_link_libraries(udscom_tui PRIVATE udscom)
+
+# ---------- tests ---------------------------------------------------
+enable_testing()
+add_subdirectory(tests)
